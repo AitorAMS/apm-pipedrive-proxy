@@ -6,15 +6,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const BASE = 'https://api.pipedrive.com/v1';
 
-const corsOptions = {
-  origin: '*',
-  methods: ['GET','OPTIONS'],
-  allowedHeaders: ['x-pipedrive-token','Content-Type']
-};
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// CORS para todas las rutas
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'x-pipedrive-token, Content-Type');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
 
-// ── Ruta especial: carga TODOS los deals de un pipeline paginando en el servidor
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Carga TODOS los deals de un pipeline paginando automáticamente
 app.get('/pipelines/:id/deals/all', async (req, res) => {
   try {
     const { id } = req.params;
@@ -45,7 +51,7 @@ app.get('/pipelines/:id/deals/all', async (req, res) => {
   }
 });
 
-// ── Ruta general: reenvía cualquier otra llamada a Pipedrive
+// Ruta general para cualquier llamada a Pipedrive
 app.get('/pipedrive/*', async (req, res) => {
   try {
     const path = req.path.replace('/pipedrive', '');
@@ -56,7 +62,7 @@ app.get('/pipedrive/*', async (req, res) => {
     params.set('api_token', token);
 
     const url = `${BASE}${path}?${params.toString()}`;
-    console.log(`[${new Date().toISOString()}] GET ${path}`);
+    console.log(`GET ${path}`);
 
     const response = await fetch(url);
     const data = await response.json();
@@ -66,11 +72,6 @@ app.get('/pipedrive/*', async (req, res) => {
     console.error('Error:', err.message);
     res.status(500).json({ error: err.message });
   }
-});
-
-// ── Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {
