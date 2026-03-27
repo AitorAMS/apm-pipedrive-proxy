@@ -6,7 +6,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const BASE = 'https://api.pipedrive.com/v1';
 
-app.use(cors());
+const corsOptions = {
+  origin: '*',
+  methods: ['GET','OPTIONS'],
+  allowedHeaders: ['x-pipedrive-token','Content-Type']
+};
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Ruta principal — ruta especial para cargar TODOS los deals de un pipeline sin límite
 app.get('/pipedrive/pipelines/:id/deals/all', async (req, res) => {
