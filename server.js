@@ -8,7 +8,6 @@ const BASE = 'https://api.pipedrive.com/v1';
 
 app.use(cors());
 
-// Ruta principal — reenvía cualquier llamada a Pipedrive
 app.get('/pipedrive/*', async (req, res) => {
   try {
     const path = req.path.replace('/pipedrive', '');
@@ -18,7 +17,6 @@ app.get('/pipedrive/*', async (req, res) => {
       return res.status(401).json({ error: 'Token no proporcionado' });
     }
 
-    // Construir query string (sin el token, lo añadimos nosotros)
     const params = new URLSearchParams(req.query);
     params.set('api_token', token);
 
@@ -35,7 +33,6 @@ app.get('/pipedrive/*', async (req, res) => {
   }
 });
 
-// Health check — para que Render sepa que el servidor está vivo
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -43,28 +40,3 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Proxy APM corriendo en puerto ${PORT}`);
 });
-```
-
-Haz clic en **"Commit new file"**.
-
----
-
-#### 📄 Archivo 3: `.gitignore`
-Nombre del archivo: `.gitignore`
-```
-node_modules/
-.env
-*.log
-```
-
-Haz clic en **"Commit new file"**.
-
----
-
-✅ Al terminar, tu repositorio debe tener estos 4 archivos:
-```
-apm-pipedrive-proxy/
-├── README.md        (se creó automáticamente)
-├── package.json
-├── server.js
-└── .gitignore
