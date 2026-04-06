@@ -123,3 +123,35 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# ============================================
+# PIPEDRIVE DATA ENDPOINT (Añadir esto)
+# ============================================
+ 
+import json
+import os
+ 
+@app.route('/api/pipedrive', methods=['GET'])
+def get_pipedrive_data():
+    """
+    Endpoint que sirve los datos de Pipedrive
+    Se ejecuta automáticamente cada 4 horas por sync.py
+    """
+    try:
+        # Leer el archivo JSON generado por sync.py
+        with open('/tmp/pipedrive_data.json', 'r') as f:
+            data = json.load(f)
+        return data, 200
+    except FileNotFoundError:
+        return {
+            'error': 'Data not available yet',
+            'message': 'Pipedrive sync is running. Try again in a few minutes.'
+        }, 404
+    except Exception as e:
+        return {
+            'error': str(e)
+        }, 500
+ 
+# ============================================
+# Resto de tu código sigue igual
+# ============================================
