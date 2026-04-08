@@ -3,19 +3,20 @@ const fetch = require('node-fetch');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const BASE = 'https://api.pipedrive.com/v1';
+
 app.use(cors());
-app.use(express.json());
 
 // ============================================
-// ENDPOINT: Proxy de Pipedrive
+// ENDPOINT: Proxy de Pipedrive (existente)
 // ============================================
 app.get('/pipedrive/*', async (req, res) => {
   try {
     const pathParam = req.path.replace('/pipedrive', '');
-    const token = req.headers['x-pipedrive-token'] || process.env.PIPEDRIVE_TOKEN;
+    const token = req.headers['x-pipedrive-token'];
     if (!token) {
       return res.status(401).json({ error: 'Token no proporcionado' });
     }
@@ -38,18 +39,23 @@ app.get('/pipedrive/*', async (req, res) => {
 app.get('/api/pipedrive', (req, res) => {
   try {
     const filePath = '/tmp/pipedrive_data.json';
+    
+    // Verificar si el archivo existe
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({
         error: 'Data not available yet',
         message: 'Pipedrive sync is running. Try again in a few minutes.'
       });
     }
+
+    // Leer el archivo JSON
     const data = fs.readFileSync(filePath, 'utf8');
     const jsonData = JSON.parse(data);
+    
     res.json(jsonData);
   } catch (err) {
     console.error('Error reading Pipedrive data:', err.message);
-    res.status(500).json({
+    res.status(500).json({ 
       error: err.message,
       message: 'Error reading Pipedrive data file'
     });
@@ -57,28 +63,31 @@ app.get('/api/pipedrive', (req, res) => {
 });
 
 // ============================================
-// ENDPOINT: Proxy de HubSpot
+// ENDPOINT: Datos sincronizados de HubSpot
 // ============================================
-app.use('/hubspot', async (req, res) => {
-  const token = req.headers['x-hubspot-token'] || process.env.HUBSPOT_TOKEN;
+app.get('/api/hubspot', (req, res) => {
   try {
-    const cleanPath = req.path;
-    const query = Object.keys(req.query).length ? '?' + new URLSearchParams(req.query).toString() : '';
-    const url = 'https://api.hubapi.com' + cleanPath + query;
-    console.log(`[HubSpot] ${req.method} ${url}`);
-    const response = await fetch(url, {
-      method: req.method,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined,
+    const filePath = '/tmp/hubspot_data.json';
+    
+    // Verificar si el archivo existe
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        error: 'Data not available yet',
+        message: 'HubSpot sync is running. Try again in a few minutes.'
+      });
+    }
+
+    // Leer el archivo JSON
+    const data = fs.readFileSync(filePath, 'utf8');
+    const jsonData = JSON.parse(data);
+    
+    res.json(jsonData);
+  } catch (err) {
+    console.error('Error reading HubSpot data:', err.message);
+    res.status(500).json({ 
+      error: err.message,
+      message: 'Error reading HubSpot data file'
     });
-    const data = await response.json();
-    res.json(data);
-  } catch (e) {
-    console.error('[HubSpot] Error:', e.message);
-    res.status(500).json({ error: e.message });
   }
 });
 
@@ -90,10 +99,48 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================
+// ENDPOINT: Status de datos disponibles
+// ============================================
+app.get('/api/status', (req, res) => {
+  try {
+    const pipedriveExists = fs.existsSync('/tmp/pipedrive_data.json');
+    const hubspotExists = fs.existsSync('/tmp/hubspot_data.json');
+    
+    const status = {
+      timestamp: new Date().toISOString(),
+      pipedrive: {
+        available: pipedriveExists,
+        file: '/tmp/pipedrive_data.json'
+      },
+      hubspot: {
+        available: hubspotExists,
+        file: '/tmp/hubspot_data.json'
+      },
+      endpoints: {
+        pipedrive: '/api/pipedrive',
+        hubspot: '/api/hubspot',
+        health: '/health'
+      }
+    };
+    
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================
+// ENDPOINT: Servir archivos estáticos (HTML)
+// ============================================
+app.use(express.static('public'));
+
+// ============================================
 // Iniciar servidor
 // ============================================
 app.listen(PORT, () => {
   console.log(`Proxy APM corriendo en puerto ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   console.log(`Pipedrive data: http://localhost:${PORT}/api/pipedrive`);
+  console.log(`HubSpot data: http://localhost:${PORT}/api/hubspot`);
+  console.log(`Status: http://localhost:${PORT}/api/status`);
 });
