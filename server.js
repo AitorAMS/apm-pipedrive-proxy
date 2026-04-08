@@ -16,7 +16,7 @@ app.use(cors());
 app.get('/pipedrive/*', async (req, res) => {
   try {
     const pathParam = req.path.replace('/pipedrive', '');
-    const token = req.headers['x-pipedrive-token'];
+    const token = req.headers['x-pipedrive-token'] || process.env.PIPEDRIVE_TOKEN;
     if (!token) {
       return res.status(401).json({ error: 'Token no proporcionado' });
     }
