@@ -61,7 +61,25 @@ app.get('/api/pipedrive', (req, res) => {
     });
   }
 });
-
+// ── HubSpot proxy ──────────────────────────────────────
+app.use('/hubspot', async (req, res) => {
+  const token = req.headers['x-hubspot-token'] || process.env.HUBSPOT_TOKEN;
+  try {
+    const url = 'https://api.hubapi.com' + req.path + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '');
+    const response = await fetch(url, {
+      method: req.method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: ['POST','PUT','PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined,
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 // ============================================
 // ENDPOINT: Health check (existente)
 // ============================================
