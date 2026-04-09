@@ -142,7 +142,7 @@ app.get('/api/pipedrive', async (req, res) => {
 // ═══════════════════════════════════════════════════════
 // 📊 ENDPOINT: /api/hubspot
 // Solo Iberia: Enterprise, Field Team, LAS APMs
-// Usa POST /search con filtro por pipeline — único método fiable
+// Usa POST /search con filtro por pipeline
 // ═══════════════════════════════════════════════════════
 app.get('/api/hubspot', async (req, res) => {
   try {
@@ -157,26 +157,47 @@ app.get('/api/hubspot', async (req, res) => {
     ];
 
     const PROPERTIES = [
-      'dealname', 'dealstage', 'pipeline',
-      'createdate', 'closedate', 'hs_lastmodifieddate',
-      'amount', 'closed_lost_reason', 'num_associated_contacts',
-      'hubspot_owner_id', 'hs_deal_stage_probability',
-      'ib_net__no_locations'
-      // Aging — ENTERPRISE
-      'hs_date_entered_1288966436', 'hs_date_entered_1217112747',
-      'hs_date_entered_1217112748', 'hs_date_entered_1217112749',
-      'hs_date_entered_1217112750', 'hs_date_entered_1217112751',
-      'hs_date_entered_1217112752', 'hs_date_entered_1217112753',
+      // Campos base
+      'dealname',
+      'dealstage',
+      'pipeline',
+      'createdate',
+      'closedate',
+      'hs_lastmodifieddate',
+      'amount',
+      'closed_lost_reason',
+      'num_associated_contacts',
+      'hubspot_owner_id',
+      'hs_deal_stage_probability',
+      // ✅ Locations — campo custom Iberia
+      'ib_net__no_locations',
+      // ── Aging: fechas de entrada por stage ──
+      // ENTERPRISE stages
+      'hs_date_entered_1288966436',
+      'hs_date_entered_1217112747',
+      'hs_date_entered_1217112748',
+      'hs_date_entered_1217112749',
+      'hs_date_entered_1217112750',
+      'hs_date_entered_1217112751',
+      'hs_date_entered_1217112752',
+      'hs_date_entered_1217112753',
       'hs_date_entered_1217112754',
-      // Aging — FIELD TEAM
-      'hs_date_entered_1217117009', 'hs_date_entered_1217117010',
-      'hs_date_entered_1217117011', 'hs_date_entered_1217117012',
-      'hs_date_entered_1217117013', 'hs_date_entered_1217117014',
-      'hs_date_entered_1217117015', 'hs_date_entered_1217117016',
-      // Aging — LAS APMs
-      'hs_date_entered_1188103598', 'hs_date_entered_1188103599',
-      'hs_date_entered_1188103600', 'hs_date_entered_1188103601',
-      'hs_date_entered_1188103602', 'hs_date_entered_1188019859',
+      // FIELD TEAM stages
+      'hs_date_entered_1217117009',
+      'hs_date_entered_1217117010',
+      'hs_date_entered_1217117011',
+      'hs_date_entered_1217117012',
+      'hs_date_entered_1217117013',
+      'hs_date_entered_1217117014',
+      'hs_date_entered_1217117015',
+      'hs_date_entered_1217117016',
+      // LAS APMs stages
+      'hs_date_entered_1188103598',
+      'hs_date_entered_1188103599',
+      'hs_date_entered_1188103600',
+      'hs_date_entered_1188103601',
+      'hs_date_entered_1188103602',
+      'hs_date_entered_1188019859',
       'hs_date_entered_1188103604',
     ];
 
