@@ -161,6 +161,7 @@ app.get('/api/hubspot', async (req, res) => {
       'createdate', 'closedate', 'hs_lastmodifieddate',
       'amount', 'closed_lost_reason', 'num_associated_contacts',
       'hubspot_owner_id', 'hs_deal_stage_probability',
+      'ib_net__no_locations'
       // Aging — ENTERPRISE
       'hs_date_entered_1288966436', 'hs_date_entered_1217112747',
       'hs_date_entered_1217112748', 'hs_date_entered_1217112749',
