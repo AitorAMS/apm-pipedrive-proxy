@@ -5,7 +5,6 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ CORS
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -45,23 +44,32 @@ async function pipedriveRequest(endpoint, options = {}) {
   }
 }
 
-async function hubspotRequest(endpoint, options = {}) {
-  const url = `${HUBSPOT_BASE_URL}${endpoint}`;
-  try {
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${HUBSPOT_API_KEY}`,
-        'Content-Type': 'application/json',
-        ...options.headers
-      }
-    });
-    if (!response.ok) throw new Error(`HubSpot HTTP ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    console.error(`❌ HubSpot request failed: ${endpoint}`, error.message);
-    throw error;
-  }
+async function hubspotSearch(pipelineId, properties, after) {
+  const body = {
+    filterGroups: [{
+      filters: [{
+        propertyName: 'pipeline',
+        operator: 'EQ',
+        value: pipelineId
+      }]
+    }],
+    properties: properties,
+    limit: 100,
+    ...(after ? { after } : {})
+  };
+
+  const url = `${HUBSPOT_BASE_URL}/crm/v3/objects/deals/search`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${HUBSPOT_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) throw new Error(`HubSpot HTTP ${response.status}`);
+  return await response.json();
 }
 
 // ═══════════════════════════════════════════════════════
@@ -134,6 +142,7 @@ app.get('/api/pipedrive', async (req, res) => {
 // ═══════════════════════════════════════════════════════
 // 📊 ENDPOINT: /api/hubspot
 // Solo Iberia: Enterprise, Field Team, LAS APMs
+// Usa POST /search con filtro por pipeline — único método fiable
 // ═══════════════════════════════════════════════════════
 app.get('/api/hubspot', async (req, res) => {
   try {
@@ -148,47 +157,27 @@ app.get('/api/hubspot', async (req, res) => {
     ];
 
     const PROPERTIES = [
-      // Campos base
-      'dealname',
-      'dealstage',
-      'pipeline',
-      'createdate',
-      'closedate',
-      'hs_lastmodifieddate',
-      'amount',
-      'closed_lost_reason',
-      'num_associated_contacts',
-      'hubspot_owner_id',
-      'hs_deal_stage_probability',
-      // ── Aging: fechas de entrada por stage ──
-      // ENTERPRISE stages
-      'hs_date_entered_1288966436',
-      'hs_date_entered_1217112747',
-      'hs_date_entered_1217112748',
-      'hs_date_entered_1217112749',
-      'hs_date_entered_1217112750',
-      'hs_date_entered_1217112751',
-      'hs_date_entered_1217112752',
-      'hs_date_entered_1217112753',
+      'dealname', 'dealstage', 'pipeline',
+      'createdate', 'closedate', 'hs_lastmodifieddate',
+      'amount', 'closed_lost_reason', 'num_associated_contacts',
+      'hubspot_owner_id', 'hs_deal_stage_probability',
+      // Aging — ENTERPRISE
+      'hs_date_entered_1288966436', 'hs_date_entered_1217112747',
+      'hs_date_entered_1217112748', 'hs_date_entered_1217112749',
+      'hs_date_entered_1217112750', 'hs_date_entered_1217112751',
+      'hs_date_entered_1217112752', 'hs_date_entered_1217112753',
       'hs_date_entered_1217112754',
-      // FIELD TEAM stages
-      'hs_date_entered_1217117009',
-      'hs_date_entered_1217117010',
-      'hs_date_entered_1217117011',
-      'hs_date_entered_1217117012',
-      'hs_date_entered_1217117013',
-      'hs_date_entered_1217117014',
-      'hs_date_entered_1217117015',
-      'hs_date_entered_1217117016',
-      // LAS APMs stages
-      'hs_date_entered_1188103598',
-      'hs_date_entered_1188103599',
-      'hs_date_entered_1188103600',
-      'hs_date_entered_1188103601',
-      'hs_date_entered_1188103602',
-      'hs_date_entered_1188019859',
+      // Aging — FIELD TEAM
+      'hs_date_entered_1217117009', 'hs_date_entered_1217117010',
+      'hs_date_entered_1217117011', 'hs_date_entered_1217117012',
+      'hs_date_entered_1217117013', 'hs_date_entered_1217117014',
+      'hs_date_entered_1217117015', 'hs_date_entered_1217117016',
+      // Aging — LAS APMs
+      'hs_date_entered_1188103598', 'hs_date_entered_1188103599',
+      'hs_date_entered_1188103600', 'hs_date_entered_1188103601',
+      'hs_date_entered_1188103602', 'hs_date_entered_1188019859',
       'hs_date_entered_1188103604',
-    ].join(',');
+    ];
 
     const allDeals = [];
 
@@ -199,17 +188,23 @@ app.get('/api/hubspot', async (req, res) => {
 
       while (page < 50) {
         page++;
-        const url = `/crm/v3/objects/deals?limit=100&pipelineId=${pipe.id}&properties=${PROPERTIES}${after ? '&after=' + after : ''}`;
-        const data = await hubspotRequest(url);
 
-        if (data.results) {
-          data.results.forEach(d => { d._pipelineName = pipe.name; });
-          allDeals.push(...data.results);
-          pipeCount += data.results.length;
+        try {
+          const data = await hubspotSearch(pipe.id, PROPERTIES, after);
+
+          if (data.results) {
+            data.results.forEach(d => { d._pipelineName = pipe.name; });
+            allDeals.push(...data.results);
+            pipeCount += data.results.length;
+          }
+
+          if (!data.paging?.next?.after) break;
+          after = data.paging.next.after;
+
+        } catch (e) {
+          console.warn(`⚠️ Error fetching ${pipe.name} page ${page}:`, e.message);
+          break;
         }
-
-        if (!data.paging?.next?.after) break;
-        after = data.paging.next.after;
       }
 
       console.log(`✅ ${pipe.name}: ${pipeCount} deals`);
@@ -240,7 +235,9 @@ app.get('/pipedrive/*', async (req, res) => {
       return res.status(401).json({ error: 'PIPEDRIVE_API_KEY not configured' });
     }
     const path = req.params[0];
-    const queryString = Object.keys(req.query).length > 0 ? '&' + new URLSearchParams(req.query).toString() : '';
+    const queryString = Object.keys(req.query).length > 0
+      ? '&' + new URLSearchParams(req.query).toString()
+      : '';
     const url = `${PIPEDRIVE_BASE_URL}/${path}?api_token=${PIPEDRIVE_API_KEY}${queryString}`;
     const response = await fetch(url);
     const data = await response.json();
@@ -260,7 +257,9 @@ app.get('/hubspot/*', async (req, res) => {
       return res.status(401).json({ error: 'HUBSPOT_API_KEY not configured' });
     }
     const path = req.params[0];
-    const queryString = Object.keys(req.query).length > 0 ? '?' + new URLSearchParams(req.query).toString() : '';
+    const queryString = Object.keys(req.query).length > 0
+      ? '?' + new URLSearchParams(req.query).toString()
+      : '';
     const url = `${HUBSPOT_BASE_URL}/${path}${queryString}`;
     const response = await fetch(url, {
       headers: {
@@ -303,13 +302,13 @@ app.listen(PORT, () => {
 ║  APM Pipedrive Proxy - Dashboard API Server                ║
 ╠════════════════════════════════════════════════════════════╣
 ║  🚀 Running on port ${PORT}
-║  📡 Pipedrive: ${PIPEDRIVE_API_KEY ? '✅ Configured' : '❌ Missing API key'}
-║  📊 HubSpot:   ${HUBSPOT_API_KEY ? '✅ Configured' : '❌ Missing API key'}
-║  🔵 HubSpot pipelines: Enterprise · Field Team · LAS APMs ║
+║  📡 Pipedrive: ${PIPEDRIVE_API_KEY ? '✅ Configured' : '❌ Missing key'}
+║  📊 HubSpot:   ${HUBSPOT_API_KEY ? '✅ Configured' : '❌ Missing key'}
+║  🔵 Iberia: Enterprise · Field Team · LAS APMs            ║
 ╠════════════════════════════════════════════════════════════╣
-║  GET /api/health     → status                             ║
+║  GET /api/health     → status check                       ║
 ║  GET /api/pipedrive  → Pipedrive APM deals                ║
-║  GET /api/hubspot    → Iberia HubSpot deals               ║
+║  GET /api/hubspot    → Iberia HubSpot deals only          ║
 ╚════════════════════════════════════════════════════════════╝
   `);
 });
