@@ -5,7 +5,7 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ✅ CORS - CRÍTICO PARA EL DASHBOARD
+// ✅ CORS
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'OPTIONS'],
@@ -16,7 +16,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // ═══════════════════════════════════════════════════════
-// 🔑 CONFIGURACIÓN - Desde variables de entorno
+// 🔑 CONFIGURACIÓN
 // ═══════════════════════════════════════════════════════
 const PIPEDRIVE_API_KEY = process.env.PIPEDRIVE_API_KEY;
 const PIPEDRIVE_BASE_URL = 'https://api.pipedrive.com/v1';
@@ -28,12 +28,8 @@ if (!PIPEDRIVE_API_KEY) console.warn('⚠️ PIPEDRIVE_API_KEY no está configur
 if (!HUBSPOT_API_KEY) console.warn('⚠️ HUBSPOT_API_KEY no está configurada');
 
 // ═══════════════════════════════════════════════════════
-// 📡 FUNCIONES HELPER
+// 📡 HELPERS
 // ═══════════════════════════════════════════════════════
-
-/**
- * Fetch con reintentos desde Pipedrive
- */
 async function pipedriveRequest(endpoint, options = {}) {
   const url = `${PIPEDRIVE_BASE_URL}${endpoint}${endpoint.includes('?') ? '&' : '?'}api_token=${PIPEDRIVE_API_KEY}`;
   try {
@@ -49,9 +45,6 @@ async function pipedriveRequest(endpoint, options = {}) {
   }
 }
 
-/**
- * Fetch con reintentos desde HubSpot
- */
 async function hubspotRequest(endpoint, options = {}) {
   const url = `${HUBSPOT_BASE_URL}${endpoint}`;
   try {
@@ -88,7 +81,6 @@ app.get('/api/health', (req, res) => {
 
 // ═══════════════════════════════════════════════════════
 // 📊 ENDPOINT: /api/pipedrive
-// Dashboard solicita datos agregados de Pipedrive
 // ═══════════════════════════════════════════════════════
 app.get('/api/pipedrive', async (req, res) => {
   try {
@@ -96,8 +88,7 @@ app.get('/api/pipedrive', async (req, res) => {
       return res.status(401).json({ error: 'PIPEDRIVE_API_KEY not configured' });
     }
 
-    // Obtener deals de los pipelines APM
-    const apmPipelines = [1, 2, 3, 4, 8, 9, 13, 17]; // IDs de los pipelines APM
+    const apmPipelines = [1, 2, 3, 4, 8, 9, 13, 17];
     const allDeals = [];
 
     for (const pipelineId of apmPipelines) {
@@ -111,7 +102,6 @@ app.get('/api/pipedrive', async (req, res) => {
       }
     }
 
-    // Obtener deal fields para enumeraciones
     const fieldsData = await pipedriveRequest('/dealFields?limit=500');
     const fieldMap = {};
     if (fieldsData.success && fieldsData.data) {
@@ -132,22 +122,18 @@ app.get('/api/pipedrive', async (req, res) => {
         timestamp: new Date().toISOString()
       },
       deals: allDeals,
-      fieldMap: fieldMap,
-      _hint: 'Use this data for rendering Pipedrive dashboards'
+      fieldMap: fieldMap
     });
 
   } catch (error) {
     console.error('❌ /api/pipedrive error:', error.message);
-    res.status(500).json({
-      error: error.message,
-      hint: 'Verify PIPEDRIVE_API_KEY is valid and Pipedrive API is accessible'
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // ═══════════════════════════════════════════════════════
 // 📊 ENDPOINT: /api/hubspot
-// Dashboard solicita datos agregados de HubSpot
+// Solo Iberia: Enterprise, Field Team, LAS APMs
 // ═══════════════════════════════════════════════════════
 app.get('/api/hubspot', async (req, res) => {
   try {
@@ -155,80 +141,109 @@ app.get('/api/hubspot', async (req, res) => {
       return res.status(401).json({ error: 'HUBSPOT_API_KEY not configured' });
     }
 
-    // Obtener deals de HubSpot
-    const pipelineIds = [
-      '866830106',  // APM Acquisition
-      '807042859',  // IBERIA: LAS APMs
-      '857575213',  // IBERIA: LAS PUDOs
-      '821946550',  // IBERIA: ENTERPRISE
-      '822050313',  // IBERIA: FIELD TEAM
+    const IBERIA_PIPELINES = [
+      { id: '821946550', name: 'IBERIA: ENTERPRISE' },
+      { id: '822050313', name: 'IBERIA: FIELD TEAM' },
+      { id: '807042859', name: 'IBERIA: LAS APMs'   },
     ];
 
-    const allDeals = [];
-    const properties = ['dealname', 'dealstage', 'pipeline', 'closedate', 'createdate', 'hs_deal_stage_probability', 'amount'];
+    const PROPERTIES = [
+      // Campos base
+      'dealname',
+      'dealstage',
+      'pipeline',
+      'createdate',
+      'closedate',
+      'hs_lastmodifieddate',
+      'amount',
+      'closed_lost_reason',
+      'num_associated_contacts',
+      'hubspot_owner_id',
+      'hs_deal_stage_probability',
+      // ── Aging: fechas de entrada por stage ──
+      // ENTERPRISE stages
+      'hs_date_entered_1288966436',
+      'hs_date_entered_1217112747',
+      'hs_date_entered_1217112748',
+      'hs_date_entered_1217112749',
+      'hs_date_entered_1217112750',
+      'hs_date_entered_1217112751',
+      'hs_date_entered_1217112752',
+      'hs_date_entered_1217112753',
+      'hs_date_entered_1217112754',
+      // FIELD TEAM stages
+      'hs_date_entered_1217117009',
+      'hs_date_entered_1217117010',
+      'hs_date_entered_1217117011',
+      'hs_date_entered_1217117012',
+      'hs_date_entered_1217117013',
+      'hs_date_entered_1217117014',
+      'hs_date_entered_1217117015',
+      'hs_date_entered_1217117016',
+      // LAS APMs stages
+      'hs_date_entered_1188103598',
+      'hs_date_entered_1188103599',
+      'hs_date_entered_1188103600',
+      'hs_date_entered_1188103601',
+      'hs_date_entered_1188103602',
+      'hs_date_entered_1188019859',
+      'hs_date_entered_1188103604',
+    ].join(',');
 
-    for (const pipelineId of pipelineIds) {
-      try {
-        let after = undefined;
-        let page = 0;
-        while (true && page < 50) {
-          page++;
-          const qs = `?limit=100&pipelineId=${pipelineId}${after ? '&after=' + after : ''}`;
-          const url = `/crm/v3/objects/deals${qs}`;
-          const params = new URLSearchParams();
-          properties.forEach(p => params.append('properties', p));
-          
-          const data = await hubspotRequest(`/crm/v3/objects/deals?limit=100&pipelineId=${pipelineId}${after ? '&after=' + after : ''}${properties.length ? '&properties=' + properties.join('&properties=') : ''}`);
-          
-          if (data.results) {
-            allDeals.push(...data.results);
-          }
-          
-          if (!data.paging?.next?.after) break;
-          after = data.paging.next.after;
+    const allDeals = [];
+
+    for (const pipe of IBERIA_PIPELINES) {
+      let after = undefined;
+      let page = 0;
+      let pipeCount = 0;
+
+      while (page < 50) {
+        page++;
+        const url = `/crm/v3/objects/deals?limit=100&pipelineId=${pipe.id}&properties=${PROPERTIES}${after ? '&after=' + after : ''}`;
+        const data = await hubspotRequest(url);
+
+        if (data.results) {
+          data.results.forEach(d => { d._pipelineName = pipe.name; });
+          allDeals.push(...data.results);
+          pipeCount += data.results.length;
         }
-      } catch (e) {
-        console.warn(`⚠️ Could not fetch HubSpot pipeline ${pipelineId}:`, e.message);
+
+        if (!data.paging?.next?.after) break;
+        after = data.paging.next.after;
       }
+
+      console.log(`✅ ${pipe.name}: ${pipeCount} deals`);
     }
 
     res.json({
       success: true,
       summary: {
         totalDeals: allDeals.length,
-        pipelines: pipelineIds.length,
+        pipelines: IBERIA_PIPELINES.map(p => p.name),
         timestamp: new Date().toISOString()
       },
-      deals: allDeals,
-      _hint: 'Use this data for rendering HubSpot dashboards'
+      deals: allDeals
     });
 
   } catch (error) {
     console.error('❌ /api/hubspot error:', error.message);
-    res.status(500).json({
-      error: error.message,
-      hint: 'Verify HUBSPOT_API_KEY is valid and HubSpot API is accessible'
-    });
+    res.status(500).json({ error: error.message });
   }
 });
 
 // ═══════════════════════════════════════════════════════
-// 📡 ENDPOINT: /pipedrive/*
-// Proxy directo para llamadas Pipedrive (usado por dashboard JavaScript)
+// 📡 PROXY: /pipedrive/*
 // ═══════════════════════════════════════════════════════
 app.get('/pipedrive/*', async (req, res) => {
   try {
     if (!PIPEDRIVE_API_KEY) {
       return res.status(401).json({ error: 'PIPEDRIVE_API_KEY not configured' });
     }
-
     const path = req.params[0];
     const queryString = Object.keys(req.query).length > 0 ? '&' + new URLSearchParams(req.query).toString() : '';
     const url = `${PIPEDRIVE_BASE_URL}/${path}?api_token=${PIPEDRIVE_API_KEY}${queryString}`;
-
     const response = await fetch(url);
     const data = await response.json();
-
     res.json(data);
   } catch (error) {
     console.error('❌ /pipedrive proxy error:', error.message);
@@ -237,26 +252,22 @@ app.get('/pipedrive/*', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
-// 📡 ENDPOINT: /hubspot/*
-// Proxy directo para llamadas HubSpot (usado por dashboard JavaScript)
+// 📡 PROXY: /hubspot/*
 // ═══════════════════════════════════════════════════════
 app.get('/hubspot/*', async (req, res) => {
   try {
     if (!HUBSPOT_API_KEY) {
       return res.status(401).json({ error: 'HUBSPOT_API_KEY not configured' });
     }
-
     const path = req.params[0];
     const queryString = Object.keys(req.query).length > 0 ? '?' + new URLSearchParams(req.query).toString() : '';
     const url = `${HUBSPOT_BASE_URL}/${path}${queryString}`;
-
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${HUBSPOT_API_KEY}`,
         'Content-Type': 'application/json'
       }
     });
-
     const data = await response.json();
     res.json(data);
   } catch (error) {
@@ -266,7 +277,7 @@ app.get('/hubspot/*', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════
-// ⚠️ 404 - Endpoint no encontrado
+// ⚠️ 404
 // ═══════════════════════════════════════════════════════
 app.use((req, res) => {
   res.status(404).json({
@@ -291,18 +302,14 @@ app.listen(PORT, () => {
 ╔════════════════════════════════════════════════════════════╗
 ║  APM Pipedrive Proxy - Dashboard API Server                ║
 ╠════════════════════════════════════════════════════════════╣
-║  🚀 Server running on: http://localhost:${PORT}
+║  🚀 Running on port ${PORT}
 ║  📡 Pipedrive: ${PIPEDRIVE_API_KEY ? '✅ Configured' : '❌ Missing API key'}
 ║  📊 HubSpot:   ${HUBSPOT_API_KEY ? '✅ Configured' : '❌ Missing API key'}
-║                                                            ║
-║  Available endpoints:                                      ║
-║  • GET /api/health             (status check)             ║
-║  • GET /api/pipedrive          (aggregated Pipedrive data)║
-║  • GET /api/hubspot            (aggregated HubSpot data)  ║
-║  • GET /pipedrive/*            (Pipedrive proxy)          ║
-║  • GET /hubspot/*              (HubSpot proxy)            ║
+║  🔵 HubSpot pipelines: Enterprise · Field Team · LAS APMs ║
 ╠════════════════════════════════════════════════════════════╣
-║  Test: curl http://localhost:${PORT}/api/health
+║  GET /api/health     → status                             ║
+║  GET /api/pipedrive  → Pipedrive APM deals                ║
+║  GET /api/hubspot    → Iberia HubSpot deals               ║
 ╚════════════════════════════════════════════════════════════╝
   `);
 });
