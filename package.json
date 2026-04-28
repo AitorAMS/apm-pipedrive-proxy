@@ -1,14 +1,18 @@
 {
   "name": "apm-pipedrive-proxy",
-  "version": "1.0.0",
+  "version": "2.0.0",
+  "description": "InPost Spain — Pipedrive proxy + KPI sync agent",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.18.2",
-    "node-fetch": "^2.6.9",
-    "dotenv": "^16.0.3"
+    "node-fetch": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
