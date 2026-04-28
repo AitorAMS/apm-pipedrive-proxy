@@ -1,0 +1,54 @@
+name: Hourly Sync — InPost KPI Dashboard
+
+on:
+  schedule:
+    # Cada hora en punto (UTC) — lunes a viernes
+    - cron: '0 6-18 * * 1-5'
+    # Fin de semana: solo a las 8h y 14h UTC (para no agotar minutos gratuitos)
+    - cron: '0 8,14 * * 0,6'
+
+  # Permite lanzar manualmente desde GitHub Actions → Run workflow
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Modo de sync (incremental / full)'
+        required: false
+        default: 'incremental'
+        type: choice
+        options:
+          - incremental
+          - full
+
+jobs:
+  sync:
+    name: Trigger sync en Render
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ping servidor (evitar cold start)
+        run: |
+          echo "Haciendo warm-up del servidor…"
+          curl -sf "${{ secrets.RENDER_URL }}/api/status" || echo "Servidor arrancando (normal en free tier)"
+          sleep 5
+
+      - name: Trigger sync incremental
+        run: |
+          MODE="${{ github.event.inputs.mode || 'incremental' }}"
+          echo "Disparando sync mode=$MODE"
+          RESPONSE=$(curl -sf -X POST \
+            "${{ secrets.RENDER_URL }}/api/sync" \
+            -H "Content-Type: application/json" \
+            -H "x-sync-secret: ${{ secrets.SYNC_SECRET }}" \
+            -d "{\"mode\": \"$MODE\"}" \
+            --max-time 30)
+          echo "Respuesta: $RESPONSE"
+
+      - name: Esperar y verificar
+        run: |
+          echo "Esperando 45s para que el sync complete…"
+          sleep 45
+          STATUS=$(curl -sf "${{ secrets.RENDER_URL }}/api/status" --max-time 10)
+          echo "Status: $STATUS"
+          # Verificar que el cache está OK
+          echo "$STATUS" | grep -q '"cache_ready":true' && echo "✓ Cache listo" || echo "⚠ Cache pendiente"
